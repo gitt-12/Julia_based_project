@@ -1,0 +1,8 @@
+using Flux, DiffEqFlux, DifferentialEquations, Plots
+function parametric_ode_system!(du,u,p,t)
+  x, y = u
+  a1, b1, c1, d1, a2, b2, c2, d2 = p
+  du[1] = dx = a1*x + b1*y + c1*exp(-d1*t)
+  du[2] = dy = a2*x + b2*y + c2*exp(-d2*t)
+end
+
