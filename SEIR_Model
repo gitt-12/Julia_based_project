@@ -1,0 +1,184 @@
+using Flux, DiffEqFlux, DifferentialEquations, Plots
+function seir_model(du, u, p, t)
+    S, E, I, R = u
+    β, ε, γ = p
+    du[1] = dS = - β*S*I
+    du[2] = dE = β * S * I - ε * E
+    du[3] = dI = ε * E - γ * I
+    du[4] = dR = γ * I #e β represents the transmission rate, ε the onset rate and γ the removal rate
+end
+u0 = [10, 1, 0.0 ,0]
+tspan = (0.0, 25.0)
+p = [ 0.05, 0.2, 0.1]
+prob = ODEProblem(seir_model, u0, tspan, p,saveat=0.1)
+
+sol1 = solve(prob)
+plot(sol1)
+
+p = [0.1, 0.25, 0.15]
+prob = ODEProblem(seir_model,u0,tspan,p)
+sol = solve(prob,Tsit5(),saveat=0.1)
+
+plot(sol)
+
+function net()
+    sol=solve(prob, Tsit5(), p=p, saveat=0.1)
+    return sol
+end
+
+A=sol[1,:]
+plot(sol)
+t = 0:0.1:25.0
+scatter!(t,A)
+
+B=sol[2,:]
+plot(sol)
+t = 0:0.1:25.0
+scatter!(t,B)
+
+C=sol[3,:]
+plot(sol)
+t = 0:0.1:25.0
+scatter!(t,C)
+
+D=sol[4,:]
+plot(sol)
+t = 0:0.1:25.0
+scatter!(t,D)
+
+t=sol1[1,:]
+q=sol1[2,:]
+r=sol1[3,:]
+s=sol1[4,:]
+dataset_out=[t, q, r, s]
+
+function loss_func()
+  pred = net()
+  sum(abs2, dataset_out[1] .- pred[1,:]) +
+  sum(abs2, dataset_out[2] .- pred[2,:]) +
+  sum(abs2, dataset_out[3] .- pred[3,:]) +
+  sum(abs2, dataset_out[4] .- pred[4,:])
+end
+
+epochs = 1000
+learning_rate = 0.05
+data = Iterators.repeated((), epochs)
+opt = ADAM(learning_rate)
+callback_func = function ()
+  display(plot(solve(remake(prob,p=p),Tsit5(),saveat=0.1),ylim=(0,10)))
+ println("loss: ", loss_func())
+ println("learned parameter", p)
+end
+fparams = Flux.params(p)
+Flux.train!(loss_func, fparams, data, opt, cb=callback_func)
+
+println("loss: ", loss_func())
+
+predict_prob = ODEProblem(seir_model, u0, tspan, p)
+predict_sol = solve(predict_prob, Tsit5(), saveat=0.1)
+S_predict_sol = [u[1] for u in predict_sol.u]
+E_predict_sol = [u[2] for u in predict_sol.u]
+I_predict_sol = [u[3] for u in predict_sol.u]
+R_predict_sol = [u[4] for u in predict_sol.u]
+
+
+plot(t, dataset_out[1],
+    linewidth=2, ls=:dash,
+    title="Neural ODEs to fit params",
+    xaxis="t",
+    label="dataset S(t)",
+    legend=true)
+plot!(t, dataset_out[2],
+    linewidth=2, ls=:dash,
+    label="dataset E(t)")
+plot!(t, dataset_out[3],
+    linewidth=2, ls=:dash,
+    title="Neural ODEs to fit params",
+    xaxis="t",
+    label="dataset I(t)",
+    legend=true)
+plot!(t, dataset_out[4],
+    linewidth=2, ls=:dash,
+    label="dataset R(t)")
+plot!(predict_sol.t, S_predict_sol,
+    linewidth=1,
+    label="predicted S(t)")
+plot!(predict_sol.t, E_predict_sol,
+    linewidth=1,
+    label="predicted E(t)")
+plot!(predict_sol.t, I_predict_sol,
+    linewidth=1,
+    label="predicted I(t)")
+plot!(predict_sol.t, R_predict_sol,
+    linewidth=1,
+    label="predicted R(t)")
+
+
+plot(sol1,linewidth=2,ls=:dash)
+plot!(predict_sol.t, S_predict_sol,
+    linewidth=2,
+    label="predicted S(t)")
+
+plot(sol1,linewidth=2,ls=:dashdotdot)
+plot!(predict_sol.t, E_predict_sol,
+    linewidth=2,ls=:solid,
+    label="predicted E(t)")
+
+plot(sol1,linewidth=2,ls=:dashdotdot)
+plot!(predict_sol.t, I_predict_sol,
+    linewidth=2,ls=:solid,
+    label="predicted I(t)")
+
+plot(sol1,linewidth=2,ls=:dashdotdot)
+plot!(predict_sol.t, R_predict_sol,
+    linewidth=2,ls=:solid,
+    label="predicted R(t)")
+
+p1 = [ 0.05, 0.2, 0.1]
+prob1 = ODEProblem(seir_model, u0, tspan, p1,saveat=1)
+
+sol5 = solve(prob)
+
+plot(sol5.t, sol5[1,:], label = "Dataset S(t)")
+plot!(sol5.t, sol5[2,:], label = "Dataset E(t)")
+plot!(sol5.t, sol5[3,:], label = "Dataset I(t)")
+plot!(sol5.t, sol5[4,:], label = "Dataset R(t)",xlims=(0,25), ylims=(0,10))
+
+p2 = [0.1, 0.25, 0.15]
+prob2 = ODEProblem(seir_model, u0, tspan, p2,saveat=1)
+sol6 = solve(prob2)
+
+plot(sol6.t, sol6[1,:], label = "Initial S(t)", xlims=(0,25), ylims=(0,10))
+scatter!(sol5.t, sol5[1,:], label = "Dataset S(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+
+plot(sol6.t, sol6[2,:], label = "Initial E(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+scatter!(sol5.t, sol5[2,:], label = "Dataset E(t)", xlims=(0,25), ylims=(0,10))
+
+plot(sol6.t, sol6[3,:], label = "Initial I(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+scatter!(sol5.t, sol5[3,:], label = "Dataset I(t)", xlims=(0,25), ylims=(0,10))
+
+plot(sol6.t, sol6[4,:], label = "Initial R(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+scatter!(sol5.t, sol5[4,:], label = "Dataset R(t)", xlims=(0,25), ylims=(0,10))
+
+scatter(sol5.t, sol5[1,:], label = "Dataset S(t)")
+
+plot(predict_sol.t, S_predict_sol,
+    linewidth=2,
+    label="predicted S(t)")
+scatter!(sol5.t, sol5[1,:], label = "Dataset S(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+
+plot(predict_sol.t, E_predict_sol,
+    linewidth=2,
+    label="predicted E(t)")
+scatter!(sol5.t, sol5[2,:], label = "Dataset E(t)", xlims=(0,25), ylims=(0,10),xlabel="t")
+
+plot(predict_sol.t, I_predict_sol,
+    linewidth=2,
+    label="predicted I(t)")
+scatter!(sol5.t, sol5[3,:], label = "Dataset I(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+
+plot(predict_sol.t, R_predict_sol,
+    linewidth=2,
+    label="predicted R(t)")
+scatter!(sol5.t, sol5[4,:], label = "Dataset R(t)", xlims=(0,25), ylims=(0,10), xlabel="t")
+
