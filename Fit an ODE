@@ -6,3 +6,151 @@ function parametric_ode_system!(du,u,p,t)
   du[2] = dy = a2*x + b2*y + c2*exp(-d2*t)
 end
 
+true_params = [1.11, 2.43, -3.66, 1.37, 2.89, -1.97, 4.58, 2.86]
+
+u0 = [0.0,0.0]
+tspan = (0.0,1.5)
+prob = ODEProblem(parametric_ode_system!,u0,tspan,saveat=0.01,true_params)
+sol = solve(prob)
+
+-->retcode: Success
+Interpolation: 1st order linear
+t: 151-element Vector{Float64}:
+ 0.0
+ 0.01
+ 0.02
+ 0.03
+ 0.04
+ 0.05
+ 0.06
+ 0.07
+ 0.08
+ 0.09
+ 0.1
+ 0.11
+ 0.12
+ ⋮
+ 1.39
+ 1.4
+ 1.41
+ 1.42
+ 1.43
+ 1.44
+ 1.45
+ 1.46
+ 1.47
+ 1.48
+ 1.49
+ 1.5
+u: 151-element Vector{Vector{Float64}}:
+ [0.0, 0.0]
+ [-0.03600799518840356, 0.0441876159809577]
+ [-0.07087931763333634, 0.08523877948249395]
+ [-0.10468310354825601, 0.12328172709260984]
+ [-0.13748611955128265, 0.15843928124027146]
+ [-0.1693528632652866, 0.19082904247146787]
+ [-0.20034558907018105, 0.22056343908593756]
+ [-0.23052449275909478, 0.24775007699512655]
+ [-0.2599478419864062, 0.2724919874062404]
+ [-0.28867197811188083, 0.2948876302700378]
+ [-0.31675145904912877, 0.3150311610767156]
+ [-0.3442389984002202, 0.33301231716731217]
+ [-0.37118570380948557, 0.34891685981247983]
+ ⋮
+ [-13.871290055873155, -8.473346282274004]
+ [-14.2415043767611, -8.709477711071418]
+ [-14.621633045280173, -8.951769563863563]
+ [-15.011937976535723, -9.200387161192658]
+ [-15.41268677372748, -9.45549941324832]
+ [-15.824152728149576, -9.71727881986758]
+ [-16.24661481919061, -9.985901470534928]
+ [-16.680357714333375, -10.261547044382116]
+ [-17.12567344388883, -10.544399807174704]
+ [-17.582886795109033, -10.834663785441139]
+ [-18.05232225066828, -11.132543183830593]
+ [-18.534305746900753, -11.438243357236843]
+
+
+plot(sol)
+
+tbegin=0.0
+tend=1.5
+tstep=0.01
+trange = tbegin:tstep:tend
+u0 = [0.0,0.0]
+tspan = (tbegin,tend)
+p=[1.0, 1.0, -1.0, -1.0, 0.5, 1.5, 2.8, 1.9]
+
+prob = ODEProblem(parametric_ode_system!, u0, tspan, p)
+
+function net()
+    solve(prob, Tsit5(), p=p, saveat=0.01)
+end
+
+an_sol_x= sol[1,:]
+an_sol_y=sol[2,:]
+dataset_outs = [an_sol_x, an_sol_y]
+function loss_func()
+  pred = net()
+  sum(abs2, dataset_outs[1] .- pred[1,:]) +
+  sum(abs2, dataset_outs[2] .- pred[2,:])
+end
+epochs = 4000
+learning_rate = 0.05
+data = Iterators.repeated((), epochs)
+opt = ADAM(learning_rate)
+callback_func = function ()
+  display(plot(solve(remake(prob,p=p),Tsit5(),saveat=0.1),ylim=(-20,10)))
+println("loss: ", loss_func())
+println("Learned parameters:", p)
+end
+fparams = Flux.params(p)
+Flux.train!(loss_func, fparams, data, opt, cb=callback_func)
+
+prob1 = ODEProblem(parametric_ode_system!,u0,tspan,saveat=0.1,true_params)
+sol1=solve(prob1)
+plot(sol1)
+savefig("F://plot.png")
+p=[1.0, 1.0, -1.0, -1.0, 0.5, 1.5, 2.8, 1.9]
+prob2=ODEProblem(parametric_ode_system!,u0,tspan,saveat=0.01,p)
+sol2=solve(prob2)
+scatter(sol1)
+plot!(sol2, ylim=(-15,7))
+   # title!("Before Training")
+predict_prob = ODEProblem(parametric_ode_system!, u0, tspan, p)
+predict_sol = solve(prob, Tsit5(), saveat=0.1)
+x_predict_sol = [u[1] for u in predict_sol.u]
+y_predict_sol = [u[2] for u in predict_sol.u]
+println("Learned parameters:", p)
+
+plot(trange, dataset_outs[1],
+    linewidth=2, ls=:dash,
+    title="Neural ODEs to fit params",
+    xaxis="t",
+    label="dataset x(t)",
+    legend=true)
+plot!(predict_sol.t, x_predict_sol,
+    linewidth=1,
+    label="predicted x(t)")
+
+scatter(sol1,
+    xaxis="t",
+    legend=true)
+plot!(predict_sol.t, x_predict_sol,
+    linewidth=2,
+    label="predicted u1(t)")
+plot!(predict_sol.t, y_predict_sol,
+    linewidth=2,label="predicted u2(t)",
+xlabel="After Training")
+
+savefig("F://After_plot1.png")
+
+scatter(sol1)
+plot!(sol2, ylim=(-15,7), xlabel="Before Training", linewidth=2,title="Neural ODEs to fit params")
+   # title!("Before Training")
+
+scatter(sol1)
+plot!(sol2.t, sol2[1,:], ylim=(-15,7), xlabel="Before Training", linewidth=2,title="Neural ODEs to fit params", label="Initial u1(t)")
+plot!(sol2.t, sol2[2,:], ylim=(-15,7), linewidth=2,label="Initial u2(t)")
+   # title!("Before Training")
+   # title!("Before Training")
